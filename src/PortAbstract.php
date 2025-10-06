@@ -1,6 +1,7 @@
 <?php
 namespace Larabookir\Gateway;
 
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Request;
 use Larabookir\Gateway\Enum;
 use Carbon\Carbon;
@@ -325,7 +326,7 @@ abstract class PortAbstract
 	 */
 	protected function makeCallback($url, array $query)
 	{
-		return $this->url_modify(array_merge($query, ['_token' => csrf_token()]), url($url));
+        return $this->url_modify(array_merge($query, ['_token' => csrf_token()]), url($url));
 	}
 
 	/**
@@ -389,8 +390,6 @@ abstract class PortAbstract
 			}
 			rtrim($postvars, '&');
 		}
-		array_push($header, "cache-control: no-cache");
-
 		$curl = curl_init();
 		curl_setopt_array($curl, array(
 			CURLOPT_URL => $url,
@@ -411,7 +410,7 @@ abstract class PortAbstract
 		if ($httpcode == 200 && $response == '') {
 			$response = '{"success": true}';
 		}
-	
+
 		return ($err) ? $err : $response;
 	}
 

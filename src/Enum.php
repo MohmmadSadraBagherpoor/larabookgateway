@@ -20,6 +20,7 @@ class Enum
     const PAYPING    = 'PAYPING';
     const PLISIO     = 'PLISIO';
     const BAZARPAY   = 'BAZARPAY';
+    const DIGIPAY    = 'DIGIPAY';
     const THAWANI    = 'THAWANI';
 
 	/**

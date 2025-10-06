@@ -16,7 +16,7 @@ class Saderat extends PortAbstract implements PortInterface
      *
      * @var string
      */
-    protected $serverTokenUrl = 'https://sepehr.shaparak.ir:8081/V1/PeymentApi/GetToken';
+    protected $serverTokenUrl = 'https://sepehr.shaparak.ir/Rest/V1/PeymentApi/GetToken';
 
     /**
      * Address of verify RestAPI server
@@ -25,6 +25,19 @@ class Saderat extends PortAbstract implements PortInterface
      */
     protected $serverVerifyUrl = 'https://sepehr.shaparak.ir:8081/V1/PeymentApi/Advice';
 
+    /**
+     * Address of pay RestAPI server
+     *
+     * @var string
+     */
+    protected $serverPayUrl = 'https://sepehr.shaparak.ir/Payment/Pay';
+
+    /**
+     * Address of rollback RestAPI server
+     *
+     * @var string
+     */
+    protected $serverRollBackUrl = 'https://sepehr.shaparak.ir/Rest/V1/PeymentApi/Rollback';
 
     /**
      * {@inheritdoc}
@@ -92,6 +105,31 @@ class Saderat extends PortAbstract implements PortInterface
     }
 
     /**
+     * Return Accesstocken
+     *
+     * @return string
+     */
+    protected function getToken()
+    {
+        $parse = parse_url($this->getCallback());
+        parse_str($parse['query'], $output);
+        unset($output['_token']);
+        $query = http_build_query($output);
+        $baseurl = strtok($this->getCallback(), '?');
+        $callback = $baseurl . '?' . $query;
+        $fields = [
+            "payload" => "",
+            "Amount" => $this->amount,
+            "callbackURL" => $callback,
+            "terminalID" => $this->config->get('gateway.saderat.TID'),
+            "invoiceID" => $this->transactionId(),
+        ];
+        $response = $this->Post($this->serverTokenUrl, $fields);
+        $response = json_decode($response);
+        return $response->Accesstoken;
+    }
+
+    /**
      * Send pay request to server
      *
      * @return void
@@ -102,22 +140,28 @@ class Saderat extends PortAbstract implements PortInterface
     {
         $this->newTransaction();
 
+        $this->ref = $this->getToken();
+        $this->transactionSetRefId();
+
+
+
         //remove _token variables from url because bank ignure it
-        $parse = parse_url($this->getCallback());
-        parse_str($parse['query'], $output);
-        unset($output['_token']);
-        $query = http_build_query($output);
-        $baseurl = strtok($this->getCallback(), '?');
-        $callback = $baseurl . '?' . $query;
-        $fields = [
-            "Amount" => $this->amount,
-            "callbackURL" => $callback,
-            "invoiceID" => $this->transactionId(),
-            "terminalID" => $this->config->get('gateway.saderat.TID')
-        ];
-        $response = $this->Post($this->serverTokenUrl, $fields);
-        $response = json_decode($response);
-        $this->refId = $response->Accesstoken;
+//        $parse = parse_url($this->getCallback());
+//        parse_str($parse['query'], $output);
+//        unset($output['_token']);
+//        $query = http_build_query($output);
+//        $baseurl = strtok($this->getCallback(), '?');
+//        $callback = $baseurl . '?' . $query;
+//        $fields = [
+//            "payload" => "",
+//            "Amount" => $this->amount,
+//            "callbackURL" => $callback,
+//            "terminalID" => '99095766',
+//            "terminalID" => $this->config->get('gateway.saderat.TID')
+//        ];
+//        $response = $this->Post($this->serverTokenUrl, $fields);
+//        $response = json_decode($response);
+//        $this->refId = $response->Accesstoken;
         $this->transactionSetRefId();
     }
 
@@ -155,5 +199,34 @@ class Saderat extends PortAbstract implements PortInterface
         $this->newLog($responce['respcode'], $inputs['respmsg']);
         throw new SaderatException($responce['respcode']);
         return false;
+    }
+
+    /**
+     * Rollback user payment
+     *
+     * @param $digitalReceipt
+     * @return true
+     * @throws SaderatException
+     */
+    protected function rollback($digitalReceipt)
+    {
+        $fields = [
+            'digitalreceipt' => $digitalReceipt,
+            'Tid' => $this->config->get('gateway.saderat.TID'),
+        ];
+        $result = $this->Post($this->serverRollBackUrl, $fields);
+        $result = json_decode($result);
+
+        if ($result->Status === 'OK'){
+            return true;
+        } elseif ($result->Status === 'NOK'){
+            $this->newLog($result->Status, $result->Message);
+            throw new SaderatException($result->Status, $result->Message);
+            return false;
+        } else {
+            $this->newLog($result->ReturnId, $result->Message);
+            throw new SaderatException($result->ReturnId);
+            return false;
+        }
     }
 }
